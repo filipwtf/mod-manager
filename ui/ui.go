@@ -248,17 +248,14 @@ func (log *logWidget) logLayout(th *material.Theme, gtx ctx, showLog bool) dim {
 		logHeight := float32((float64(gtx.Constraints.Max.Y) * 0.25))
 		height := float32((float64(gtx.Constraints.Max.Y) * 0.75))
 
-		widgets := []layout.Widget{
-			func(gtx ctx) dim {
+		return list.Layout(gtx, 1, func(gtx ctx, i int) dim {
+			return layout.Inset{
+				Top: unit.Dp(height),
+			}.Layout(gtx, func(gtx ctx) dim {
 				gtx.Constraints.Max.Y = gtx.Px(unit.Dp(logHeight))
 				gtx.Constraints.Min.X = gtx.Px(unit.Dp(width))
 				return material.Editor(th, editor, "Log is empty").Layout(gtx)
-			},
-		}
-		return list.Layout(gtx, len(widgets), func(gtx ctx, i int) dim {
-			return layout.Inset{
-				Top: unit.Dp(height),
-			}.Layout(gtx, widgets[i])
+			})
 		})
 	}
 	return layoutWidget(gtx, 0, 0)
