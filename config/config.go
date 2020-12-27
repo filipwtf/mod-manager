@@ -9,7 +9,7 @@ import (
 // Config stores application version
 type Config struct {
 	Version  string `yaml:"version"`
-	ShowLogs bool   `yaml:"log"`
+	ShowLogs bool   `yaml:"mods"`
 	MCPath   string `yaml:"mcpath"`
 }
 

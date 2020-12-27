@@ -20,21 +20,19 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const listLen = 1e6
-
 type (
 	ctx = layout.Context
 	dim = layout.Dimensions
 )
 
 var (
-	std   string
-	count = 0
-	list  = &layout.List{
+	std  string
+	list = &layout.List{
 		Axis: layout.Vertical,
 	}
 	editor = new(widget.Editor)
-	prefix = fmt.Sprintf("[%s] ", time.Now().Format("2-1-2006 15:04:05"))
+	prefix = fmt.Sprintf("[%s] ", time.Now().Format("2-1-2006 15:04"))
+	start  time.Time
 )
 
 // UI holds all of the application state.
@@ -45,6 +43,7 @@ type UI struct {
 	main    customWidget
 	cfg     configWidget
 	log     logWidget
+	mods    []Mod
 }
 
 type customWidget struct {
@@ -96,6 +95,13 @@ func NewUI(config config.Config) *UI {
 	}
 
 	go func() {
+		start = time.Now()
+		ui.mods = GetAllMods(ui.cfg.mcPath)
+		end := time.Since(start)
+		Log(fmt.Sprintf("Loading %d mods took %fs", len(ui.mods), end.Seconds()))
+	}()
+
+	go func() {
 		ui.checkForUpdate()
 		if ui.update {
 			downloadUpdate()
@@ -107,7 +113,7 @@ func NewUI(config config.Config) *UI {
 
 func (ui *UI) checkForUpdate() {
 	Log("Checking for updates")
-	latest := getLastestVersion()
+	latest := getLatestVersion()
 	if ui.version != latest {
 		Log(fmt.Sprintf("Update available %s -> %s", ui.version, latest))
 		ui.update = true
@@ -125,22 +131,22 @@ func downloadUpdate() {
 }
 
 // TODO Fetch from url
-func getLastestVersion() string {
+func getLatestVersion() string {
 	return "1.0.0"
 }
 
 func (ui *UI) saveConfig() {
 	configFile := config.GetConfig(os.O_WRONLY)
-	config := config.Config{
+	defer configFile.Close()
+
+	cfg := config.Config{
 		Version:  ui.version,
 		ShowLogs: ui.cfg.showLog,
 		MCPath:   ui.cfg.mcPath,
 	}
-	if err := yaml.NewEncoder(configFile).Encode(config); err != nil {
+	if err := yaml.NewEncoder(configFile).Encode(cfg); err != nil {
 		log.Println(err)
 	}
-
-	configFile.Close()
 }
 
 // Run handles window events and renders the application.
@@ -157,7 +163,6 @@ func (ui *UI) Run(w *app.Window) error {
 			return e.Err
 		}
 	}
-
 	return nil
 }
 
@@ -170,14 +175,12 @@ func (ui *UI) drawLayout(gtx ctx) dim {
 			return ui.cfg.configLayout(ui.theme, gtx, ui.version)
 		}),
 		layout.Stacked(func(gtx ctx) dim {
-			return ui.main.mainLayout(ui.theme, gtx, ui.cfg.showLog)
-
+			return ui.main.mainLayout(ui.theme, gtx, ui.mods, ui.cfg.showLog)
 		}),
 	)
 }
 
-func (main *customWidget) mainLayout(th *material.Theme, gtx ctx, full bool) dim {
-
+func (main *customWidget) mainLayout(th *material.Theme, gtx ctx, mods []Mod, full bool) dim {
 	var size float32
 	if full {
 		size = 0.68
@@ -186,12 +189,18 @@ func (main *customWidget) mainLayout(th *material.Theme, gtx ctx, full bool) dim
 	}
 
 	height := float32(gtx.Constraints.Max.Y) * size
-
 	gtx.Constraints.Max.Y = int(height)
-
 	widgets := []layout.Widget{
-		material.Body1(th, "Mod Compoenents will go here").Layout,
+		material.H4(th, "Mods").Layout,
 	}
+
+	for _, mod := range mods {
+		mod := mod
+		widgets = append(widgets, func(gtx ctx) dim {
+			return material.Body1(th, mod.SimpleName).Layout(gtx)
+		})
+	}
+
 	return list.Layout(gtx, len(widgets), func(gtx ctx, i int) dim {
 		return layout.Inset{
 			Top:  unit.Dp(0),
@@ -201,8 +210,8 @@ func (main *customWidget) mainLayout(th *material.Theme, gtx ctx, full bool) dim
 }
 
 func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version string) dim {
-
 	height := getConfigHeight(gtx, cfg.showLog)
+
 	return layout.Inset{Top: unit.Dp(height)}.Layout(gtx, func(gtx ctx) dim {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx ctx) dim {
@@ -228,6 +237,7 @@ func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version strin
 						if cfg.mcPath != cfg.editor.Text() {
 							cfg.mcPath = cfg.editor.Text()
 							Log(fmt.Sprintf("Mods directory set to: %s", cfg.mcPath))
+							GetAllMods(cfg.mcPath)
 						}
 					}
 					return material.Button(th, cfg.setDirBtn, "Set Dir").Layout(gtx)
@@ -245,8 +255,8 @@ func (log *logWidget) logLayout(th *material.Theme, gtx ctx, showLog bool) dim {
 	if showLog {
 		editor.SetText(std)
 		width := float32(gtx.Constraints.Max.X)
-		logHeight := float32((float64(gtx.Constraints.Max.Y) * 0.25))
-		height := float32((float64(gtx.Constraints.Max.Y) * 0.75))
+		logHeight := float32(float64(gtx.Constraints.Max.Y) * 0.25)
+		height := float32(float64(gtx.Constraints.Max.Y) * 0.75)
 
 		return list.Layout(gtx, 1, func(gtx ctx, i int) dim {
 			return layout.Inset{
@@ -258,10 +268,10 @@ func (log *logWidget) logLayout(th *material.Theme, gtx ctx, showLog bool) dim {
 			})
 		})
 	}
-	return layoutWidget(gtx, 0, 0)
+	return layoutWidget(0, 0)
 }
 
-func layoutWidget(ctx ctx, width, height int) dim {
+func layoutWidget(width, height int) dim {
 	return dim{
 		Size: image.Point{
 			X: width,
@@ -272,10 +282,9 @@ func layoutWidget(ctx ctx, width, height int) dim {
 
 func getConfigHeight(gtx ctx, show bool) float32 {
 	if show {
-		return float32((float64(gtx.Constraints.Max.Y) * 0.75)) - 40
+		return float32(float64(gtx.Constraints.Max.Y)*0.75) - 40
 	}
 	return float32(float64(gtx.Constraints.Max.Y)) - 40
-
 }
 
 // Log a message to editor

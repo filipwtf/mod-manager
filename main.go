@@ -12,20 +12,18 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var std string
-
 func main() {
 	configFile := config.GetConfig(os.O_CREATE | os.O_RDONLY)
-	var config config.Config
-	if err := yaml.NewDecoder(configFile).Decode(&config); err != nil {
+	var uiCfg config.Config
+	if err := yaml.NewDecoder(configFile).Decode(&uiCfg); err != nil {
 		log.Println(err)
-		config.Version = "0.0.0"
-		config.MCPath = "Enter mc path"
-		config.ShowLogs = true
+		uiCfg.Version = "0.0.0"
+		uiCfg.MCPath = "Enter mc path"
+		uiCfg.ShowLogs = true
 	}
 	defer configFile.Close()
 
-	ui := ui.NewUI(config)
+	modUI := ui.NewUI(uiCfg)
 
 	go func() {
 		title := fmt.Sprintf("Filip's Mod Manager")
@@ -34,7 +32,7 @@ func main() {
 			app.MinSize(unit.Dp(1260), unit.Dp(640)),
 			app.MaxSize(unit.Dp(640), unit.Dp(640)),
 		)
-		if err := ui.Run(window); err != nil {
+		if err := modUI.Run(window); err != nil {
 			log.Println(err)
 			os.Exit(1)
 		}
