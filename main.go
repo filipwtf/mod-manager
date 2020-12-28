@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/filipwtf/filips-installer/scraper"
 	"log"
 	"os"
 
@@ -38,6 +39,11 @@ func main() {
 		}
 		os.Exit(0)
 	}()
+	mods := scraper.ScrapeSk1erMods()
+
+	for _, mod := range *mods {
+		fmt.Println(mod.Link)
+	}
 
 	app.Main()
 }

@@ -67,7 +67,6 @@ func (mod *Mod) modWidget(th *material.Theme) layout.Widget {
 				button.Inset = layout.Inset{}
 				return button.Layout(gtx)
 			}),
-			// TODO Delete Button
 			// TODO Integrity Check
 			// TODO Update check? Not very feasible
 		)
