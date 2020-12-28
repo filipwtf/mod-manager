@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"gioui.org/app"
-	"gioui.org/unit"
 	"github.com/filipwtf/filips-installer/config"
 	"github.com/filipwtf/filips-installer/ui"
 	"gopkg.in/yaml.v2"
@@ -18,8 +17,9 @@ func main() {
 	if err := yaml.NewDecoder(configFile).Decode(&uiCfg); err != nil {
 		log.Println(err)
 		uiCfg.Version = "0.0.0"
-		uiCfg.MCPath = "Enter mc path"
+		uiCfg.MCPath = "Mods Directory"
 		uiCfg.ShowLogs = true
+		uiCfg.Installer = false
 	}
 	defer configFile.Close()
 
@@ -29,8 +29,8 @@ func main() {
 		title := fmt.Sprintf("Filip's Mod Manager")
 		window := app.NewWindow(
 			app.Title(title),
-			app.MinSize(unit.Dp(1260), unit.Dp(640)),
-			app.MaxSize(unit.Dp(640), unit.Dp(640)),
+			app.MinSize(config.Width, config.Height),
+			app.MaxSize(config.Width, config.Height),
 		)
 		if err := modUI.Run(window); err != nil {
 			log.Println(err)

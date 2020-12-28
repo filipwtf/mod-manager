@@ -4,6 +4,9 @@ import (
 	"archive/zip"
 	"bufio"
 	"fmt"
+	"gioui.org/layout"
+	"gioui.org/widget/material"
+	"github.com/filipwtf/filips-installer/config"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -34,11 +37,37 @@ type MCModInfo struct {
 	dependencies []string
 }
 
-func GetAllMods(dir string) []Mod {
-	if dir == "Enter mc path" || dir == "" {
+func (mod *Mod) DeleteMod() {
+	err := os.Remove(mod.Path)
+	if err != nil {
+		Log(fmt.Sprintf("Failed to delete file %s", mod.Name))
+	}
+	Log(fmt.Sprintf("Succesffuly deleted %s", mod.Name))
+}
+
+func (mod *Mod) modWidget(th *material.Theme) layout.Widget {
+	return func(gtx ctx) dim {
+		return layout.Flex{}.Layout(gtx,
+			layout.Flexed(0.2, func(gtx ctx) dim {
+				return material.Body1(th, mod.SimpleName).Layout(gtx)
+			}),
+			layout.Flexed(0.4, func(gtx ctx) dim {
+				return material.Body1(th, mod.Version).Layout(gtx)
+			}),
+			// TODO Delete Button
+			// TODO Integrity Check
+			// TODO Update check? Not very feasible
+		)
+	}
+}
+
+func GetAllMods(config config.Config) []Mod {
+	if config.IsDirSet() == false {
 		Log("Not a valid path")
 		return []Mod{}
 	}
+	dir := config.MCPath
+
 	files := getJarFiles(dir)
 
 	var mods []Mod
@@ -110,5 +139,3 @@ func getJarFiles(dir string) []os.FileInfo {
 	}
 	return files
 }
-
-// TODO Handle deletion of mods etc

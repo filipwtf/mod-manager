@@ -40,15 +40,16 @@ type UI struct {
 	theme   *material.Theme
 	version string
 	update  bool
-	main    customWidget
+	main    mainWidget
 	cfg     configWidget
 	log     logWidget
 	mods    []Mod
 }
 
-type customWidget struct {
-	editor *widget.Editor
-	list   *layout.List
+type mainWidget struct {
+	installer bool
+	editor    *widget.Editor
+	list      *layout.List
 }
 
 type configWidget struct {
@@ -58,6 +59,7 @@ type configWidget struct {
 	list       *layout.List
 	showLogBtn *widget.Clickable
 	setDirBtn  *widget.Clickable
+	configRef  config.Config
 }
 
 type logWidget struct {
@@ -70,8 +72,9 @@ func NewUI(config config.Config) *UI {
 	ui := &UI{
 		theme:   material.NewTheme(gofont.Collection()),
 		version: config.Version,
-		main: customWidget{
-			editor: new(widget.Editor),
+		main: mainWidget{
+			installer: config.Installer,
+			editor:    new(widget.Editor),
 			list: &layout.List{
 				Axis: layout.Vertical,
 			},
@@ -85,6 +88,7 @@ func NewUI(config config.Config) *UI {
 			},
 			showLogBtn: new(widget.Clickable),
 			setDirBtn:  new(widget.Clickable),
+			configRef:  config,
 		},
 		log: logWidget{
 			editor: new(widget.Editor),
@@ -96,7 +100,7 @@ func NewUI(config config.Config) *UI {
 
 	go func() {
 		start = time.Now()
-		ui.mods = GetAllMods(ui.cfg.mcPath)
+		ui.mods = GetAllMods(config)
 		end := time.Since(start)
 		Log(fmt.Sprintf("Loading %d mods took %fs", len(ui.mods), end.Seconds()))
 	}()
@@ -140,9 +144,10 @@ func (ui *UI) saveConfig() {
 	defer configFile.Close()
 
 	cfg := config.Config{
-		Version:  ui.version,
-		ShowLogs: ui.cfg.showLog,
-		MCPath:   ui.cfg.mcPath,
+		Version:   ui.version,
+		ShowLogs:  ui.cfg.showLog,
+		MCPath:    ui.cfg.mcPath,
+		Installer: false,
 	}
 	if err := yaml.NewEncoder(configFile).Encode(cfg); err != nil {
 		log.Println(err)
@@ -175,46 +180,19 @@ func (ui *UI) drawLayout(gtx ctx) dim {
 			return ui.cfg.configLayout(ui.theme, gtx, ui.version)
 		}),
 		layout.Stacked(func(gtx ctx) dim {
-			return ui.main.mainLayout(ui.theme, gtx, ui.mods, ui.cfg.showLog)
+			if ui.main.installer {
+				return ui.main.installerLayout(ui.theme, gtx, ui.cfg.showLog)
+			}
+			return ui.main.managerLayout(ui.theme, gtx, ui.mods, ui.cfg.showLog)
 		}),
 	)
 }
 
-func (main *customWidget) mainLayout(th *material.Theme, gtx ctx, mods []Mod, full bool) dim {
-	var size float32
-	if full {
-		size = 0.68
-	} else {
-		size = 0.92
-	}
-
-	height := float32(gtx.Constraints.Max.Y) * size
-	gtx.Constraints.Max.Y = int(height)
-	widgets := []layout.Widget{
-		material.H4(th, "Mods").Layout,
-	}
-
-	for _, mod := range mods {
-		mod := mod
-		widgets = append(widgets, func(gtx ctx) dim {
-			return material.Body1(th, mod.SimpleName).Layout(gtx)
-		})
-	}
-
-	return list.Layout(gtx, len(widgets), func(gtx ctx, i int) dim {
-		return layout.Inset{
-			Top:  unit.Dp(0),
-			Left: unit.Dp(10),
-		}.Layout(gtx, widgets[i])
-	})
-}
-
 func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version string) dim {
 	height := getConfigHeight(gtx, cfg.showLog)
-
 	return layout.Inset{Top: unit.Dp(height)}.Layout(gtx, func(gtx ctx) dim {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx ctx) dim {
+			layout.Flexed(0.2, func(gtx ctx) dim {
 				return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx ctx) dim {
 					for cfg.showLogBtn.Clicked() {
 						cfg.showLog = !cfg.showLog
@@ -223,7 +201,7 @@ func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version strin
 				})
 			}),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
-			layout.Rigid(func(gtx ctx) dim {
+			layout.Flexed(0.6, func(gtx ctx) dim {
 				e := material.Editor(th, cfg.editor, cfg.mcPath)
 				border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Px(1)}
 				return border.Layout(gtx, func(gtx ctx) dim {
@@ -231,19 +209,20 @@ func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version strin
 					return layout.UniformInset(unit.Dp(8)).Layout(gtx, e.Layout)
 				})
 			}),
-			layout.Rigid(func(gtx ctx) dim {
+			layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+			layout.Flexed(0.2, func(gtx ctx) dim {
 				return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx ctx) dim {
 					for cfg.setDirBtn.Clicked() {
 						if cfg.mcPath != cfg.editor.Text() {
 							cfg.mcPath = cfg.editor.Text()
 							Log(fmt.Sprintf("Mods directory set to: %s", cfg.mcPath))
-							GetAllMods(cfg.mcPath)
+							GetAllMods(cfg.configRef)
 						}
 					}
 					return material.Button(th, cfg.setDirBtn, "Set Dir").Layout(gtx)
 				})
 			}),
-			layout.Rigid(layout.Spacer{Width: unit.Dp(20)}.Layout),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(50)}.Layout),
 			layout.Rigid(func(gtx ctx) dim {
 				return material.Body1(th, fmt.Sprintf("Version - %s", version)).Layout(gtx)
 			}),
