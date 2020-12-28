@@ -13,7 +13,7 @@ import (
 
 func main() {
 	configFile := config.GetConfig(os.O_CREATE | os.O_RDONLY)
-	var uiCfg config.Config
+	var uiCfg *config.Config
 	if err := yaml.NewDecoder(configFile).Decode(&uiCfg); err != nil {
 		log.Println(err)
 		uiCfg.Version = "0.0.0"

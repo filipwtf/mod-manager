@@ -5,8 +5,10 @@ import (
 	"bufio"
 	"fmt"
 	"gioui.org/layout"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/filipwtf/filips-installer/config"
+	"image/color"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -19,6 +21,7 @@ type Mod struct {
 	Path       string `yaml:"path"`
 	Version    string `yaml:"version"`
 	Latest     bool   `yaml:"latest"`
+	DeleteBtn  *widget.Clickable
 }
 
 // MCModInfo forge mod info, unreliable due to mod authors not using this
@@ -54,6 +57,16 @@ func (mod *Mod) modWidget(th *material.Theme) layout.Widget {
 			layout.Flexed(0.4, func(gtx ctx) dim {
 				return material.Body1(th, mod.Version).Layout(gtx)
 			}),
+			layout.Flexed(0.05, func(gtx ctx) dim {
+				if mod.DeleteBtn.Clicked() {
+					mod.DeleteMod()
+				}
+				button := material.Button(th, mod.DeleteBtn, "Delete")
+				button.Color = color.NRGBA{R: 0xff, A: 0xff}
+				button.Background = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+				button.Inset = layout.Inset{}
+				return button.Layout(gtx)
+			}),
 			// TODO Delete Button
 			// TODO Integrity Check
 			// TODO Update check? Not very feasible
@@ -61,9 +74,11 @@ func (mod *Mod) modWidget(th *material.Theme) layout.Widget {
 	}
 }
 
-func GetAllMods(config config.Config) []Mod {
+func GetAllMods(config config.Config, log bool) []Mod {
 	if config.IsDirSet() == false {
-		Log("Not a valid path")
+		if log {
+			Log("Not a valid path")
+		}
 		return []Mod{}
 	}
 	dir := config.MCPath
@@ -80,8 +95,11 @@ func GetAllMods(config config.Config) []Mod {
 			SimpleName: strings.Replace(file.Name(), ".jar", "", 1),
 			Path:       path,
 			Version:    version,
+			DeleteBtn:  new(widget.Clickable),
 		}
-		Log(fmt.Sprintf("Found mod: %s, version: %s", file.Name(), version))
+		if log {
+			Log(fmt.Sprintf("Found mod: %s, version: %s", file.Name(), version))
+		}
 		mods = append(mods, m)
 	}
 	return mods

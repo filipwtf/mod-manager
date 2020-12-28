@@ -24,8 +24,7 @@ func (main *mainWidget) managerLayout(th *material.Theme, gtx ctx, mods []Mod, f
 	widgets := []layout.Widget{
 		material.H4(th, "Mod Manager").Layout,
 		drawSplitter(),
-		material.Body1(th, "Mod Name").Layout,
-		// TODO Table title
+		drawModTableTitle(th),
 		drawSplitter(),
 	}
 
@@ -60,6 +59,22 @@ func (main *mainWidget) installerLayout(th *material.Theme, gtx ctx, full bool) 
 			Left: unit.Dp(10),
 		}.Layout(gtx, widgets[i])
 	})
+}
+
+func drawModTableTitle(th *material.Theme) layout.Widget {
+	return func(gtx ctx) dim {
+		return layout.Flex{}.Layout(gtx,
+			layout.Flexed(0.2, func(gtx ctx) dim {
+				return material.Body1(th, "Name").Layout(gtx)
+			}),
+			layout.Flexed(0.4, func(gtx ctx) dim {
+				return material.Body1(th, "Version").Layout(gtx)
+			}),
+			layout.Flexed(0.05, func(gtx ctx) dim {
+				return material.Body1(th, "Options").Layout(gtx)
+			}),
+		)
+	}
 }
 
 func drawSplitter() layout.Widget {

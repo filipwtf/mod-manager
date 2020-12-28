@@ -68,7 +68,7 @@ type logWidget struct {
 }
 
 // NewUI creates a new UI using the Go Fonts.
-func NewUI(config config.Config) *UI {
+func NewUI(config *config.Config) *UI {
 	ui := &UI{
 		theme:   material.NewTheme(gofont.Collection()),
 		version: config.Version,
@@ -88,7 +88,7 @@ func NewUI(config config.Config) *UI {
 			},
 			showLogBtn: new(widget.Clickable),
 			setDirBtn:  new(widget.Clickable),
-			configRef:  config,
+			configRef:  *config,
 		},
 		log: logWidget{
 			editor: new(widget.Editor),
@@ -98,11 +98,19 @@ func NewUI(config config.Config) *UI {
 		},
 	}
 
+	// Constantly checks for deleted mods
+	ticker := time.NewTicker(2 * time.Second)
 	go func() {
 		start = time.Now()
-		ui.mods = GetAllMods(config)
+		ui.mods = GetAllMods(*config, true)
 		end := time.Since(start)
 		Log(fmt.Sprintf("Loading %d mods took %fs", len(ui.mods), end.Seconds()))
+		for {
+			select {
+			case <-ticker.C:
+				ui.mods = GetAllMods(*config, false)
+			}
+		}
 	}()
 
 	go func() {
@@ -216,7 +224,7 @@ func (cfg *configWidget) configLayout(th *material.Theme, gtx ctx, version strin
 						if cfg.mcPath != cfg.editor.Text() {
 							cfg.mcPath = cfg.editor.Text()
 							Log(fmt.Sprintf("Mods directory set to: %s", cfg.mcPath))
-							GetAllMods(cfg.configRef)
+							GetAllMods(cfg.configRef, true)
 						}
 					}
 					return material.Button(th, cfg.setDirBtn, "Set Dir").Layout(gtx)
